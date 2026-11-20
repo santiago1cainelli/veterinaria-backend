@@ -1,22 +1,45 @@
-import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
+import { ConfigService } from '@nestjs/config';
+import { ValidationPipe } from '@nestjs/common';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import helmet from 'helmet';
 import { AppModule } from './app.module';
-import { join } from 'path';
-import * as express from 'express';
+
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-  // 1. ¡LA MAGIA DE CORS!
-  // Esto le dice a NestJS que acepte peticiones desde cualquier origen (incluyendo tu React)
+  const config = app.get(ConfigService);
+
+  app.use(helmet());
   app.enableCors();
-  // Si quisieras ser súper estricto y seguro en producción, harías esto:
-  // app.enableCors({ origin: 'http://localhost:5173' }); // Solo permite a tu React
-  // Guardia Global de los DTOs
-  app.useGlobalPipes(new ValidationPipe({
-    whitelist: true,
-    forbidNonWhitelisted: true,
-  }));
-  // Servidor de archivos estáticos para las fotos de las mascotas
-  app.use('/uploads', express.static(join(__dirname, '..', 'uploads')));
-  await app.listen(3000);
+
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true, // descarta propiedades no declaradas en los DTO
+      forbidNonWhitelisted: true,
+      transform: true, // convierte payloads a instancias de clase (y castea tipos)
+      transformOptions: { enableImplicitConversion: true },
+    }),
+  );
+
+  app.setGlobalPrefix('api');
+
+  const swaggerConfig = new DocumentBuilder()
+    .setTitle('El Globo API')
+    .setDescription(
+      'API REST del Club Social y Deportivo "El Globo": gestión de socios, cobranzas, ' +
+        'actividades deportivas y casilleros. Trabajo Final de Práctica Profesionalizante II - ISCA4014.',
+    )
+    .setVersion('1.0')
+    .addBearerAuth()
+    .build();
+  const document = SwaggerModule.createDocument(app, swaggerConfig);
+  SwaggerModule.setup('api/docs', app, document);
+
+  const port = config.get<number>('port') ?? 3000;
+  await app.listen(port);
+  // eslint-disable-next-line no-console
+  console.log(`El Globo API escuchando en http://localhost:${port}/api`);
+  // eslint-disable-next-line no-console
+  console.log(`Documentación Swagger en http://localhost:${port}/api/docs`);
 }
 bootstrap();

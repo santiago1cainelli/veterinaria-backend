@@ -1,35 +1,89 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
-import { UsuariosService } from '../usuarios/usuarios.service';
+import { InjectRepository } from '@nestjs/typeorm';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
+import { Repository } from 'typeorm';
+import { User } from '../users/entities/user.entity';
+import { LoginDto } from './dto/login.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
+import { AuthenticatedUser } from './interfaces/authenticated-user.interface';
+
 @Injectable()
 export class AuthService {
-    constructor(
-        private readonly usuariosService: UsuariosService,
-        private readonly jwtService: JwtService,
-    ) { }
-    async login(email: string, passwordPlain: string) {
-        // 1. Buscamos al usuario en la base de datos (Necesitamos crear este método en usuariosService)
-        // Nota: Asumiremos que crearemos un método llamado "findOneByEmail" en el servicio de usuarios.
-        const usuario = await this.usuariosService.findOneByEmail(email);
-        if (!usuario) {
-            throw new UnauthorizedException('Credenciales incorrectas (Email falso)');
-        }
-        // 2. ¡Comparamos la contraseña de texto plano con el Hash de MySQL!
-        const isPasswordValid = await bcrypt.compare(passwordPlain, usuario.password);
-        if (!isPasswordValid) {
-            throw new UnauthorizedException('Credenciales incorrectas (Password falsa)');
-        }
-        // 3. Si todo está OK, armamos los datos de la "pulsera" (Payload)
-        const payload = {
-            sub: usuario.id,
-            email: usuario.email,
-            rol: usuario.rol
-        };
-        // 4. Firmamos el token y lo devolvemos
-        return {
-            user: { email: usuario.email, rol: usuario.rol },
-            token: await this.jwtService.signAsync(payload),
-        };
+  constructor(
+    @InjectRepository(User) private readonly usersRepo: Repository<User>,
+    private readonly jwtService: JwtService,
+  ) {}
+
+  /**
+   * Valida credenciales (correo/clave) y redirige según el rol asociado
+   * (R1: administrador -> gestión global, cobrador -> cupones, instructor
+   * -> actividades, socio -> panel personal).
+   */
+  async login(dto: LoginDto) {
+    const user = await this.usersRepo.findOne({
+      where: { email: dto.email },
+      relations: ['socio', 'instructor', 'cobrador'],
+      select: {
+        id: true,
+        email: true,
+        password: true,
+        role: true,
+        activo: true,
+      },
+    });
+
+    if (!user || !user.activo) {
+      throw new UnauthorizedException('Credenciales inválidas o usuario inactivo.');
     }
+
+    const passwordValida = await bcrypt.compare(dto.password, user.password);
+    if (!passwordValida) {
+      throw new UnauthorizedException('Credenciales inválidas.');
+    }
+
+    const payload: AuthenticatedUser = {
+      userId: user.id,
+      email: user.email,
+      role: user.role,
+      socioId: user.socio?.id ?? null,
+      instructorId: user.instructor?.id ?? null,
+      cobradorId: user.cobrador?.id ?? null,
+    };
+
+    return {
+      accessToken: await this.jwtService.signAsync(payload),
+      user: payload,
+    };
+  }
+
+  async changePassword(userId: number, dto: ChangePasswordDto) {
+    const user = await this.usersRepo.findOne({
+      where: { id: userId },
+      select: { id: true, password: true },
+    });
+    if (!user) {
+      throw new UnauthorizedException('Usuario no encontrado.');
+    }
+
+    const passwordValida = await bcrypt.compare(dto.passwordActual, user.password);
+    if (!passwordValida) {
+      throw new UnauthorizedException('La contraseña actual es incorrecta.');
+    }
+
+    user.password = await bcrypt.hash(dto.passwordNueva, 10);
+    await this.usersRepo.save(user);
+    return { message: 'Contraseña actualizada correctamente.' };
+  }
+
+  async me(userId: number): Promise<Omit<User, 'password'>> {
+    const user = await this.usersRepo.findOne({
+      where: { id: userId },
+      relations: ['socio', 'instructor', 'cobrador'],
+    });
+    if (!user) {
+      throw new UnauthorizedException('Usuario no encontrado.');
+    }
+    return user;
+  }
 }
