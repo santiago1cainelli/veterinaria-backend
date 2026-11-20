@@ -1,0 +1,128 @@
+"use strict";
+var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
+    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
+    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
+    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
+    return c > 3 && r && Object.defineProperty(target, key, r), r;
+};
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+var __param = (this && this.__param) || function (paramIndex, decorator) {
+    return function (target, key) { decorator(target, key, paramIndex); }
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.CuponesController = void 0;
+const common_1 = require("@nestjs/common");
+const swagger_1 = require("@nestjs/swagger");
+const cupones_service_1 = require("./cupones.service");
+const query_cupon_dto_1 = require("./dto/query-cupon.dto");
+const pagar_cupon_dto_1 = require("./dto/pagar-cupon.dto");
+const roles_decorator_1 = require("../common/decorators/roles.decorator");
+const role_enum_1 = require("../common/enums/role.enum");
+const roles_guard_1 = require("../common/guards/roles.guard");
+const current_user_decorator_1 = require("../common/decorators/current-user.decorator");
+let CuponesController = class CuponesController {
+    constructor(service) {
+        this.service = service;
+    }
+    findAll(query, user) {
+        if (user.role === role_enum_1.Role.SOCIO) {
+            query.socioId = user.socioId;
+        }
+        if (user.role === role_enum_1.Role.COBRADOR) {
+            query.cobradorId = user.cobradorId;
+        }
+        return this.service.findAll(query);
+    }
+    async findOne(id, user) {
+        const cupon = await this.service.findOne(id);
+        if (user.role === role_enum_1.Role.SOCIO && cupon.socio.id !== user.socioId) {
+            throw new common_1.ForbiddenException('Sólo puede consultar sus propios cupones.');
+        }
+        if (user.role === role_enum_1.Role.COBRADOR && cupon.cobrador?.id !== user.cobradorId) {
+            throw new common_1.ForbiddenException('Sólo puede consultar cupones de su propia zona.');
+        }
+        return cupon;
+    }
+    pagar(id, dto) {
+        return this.service.pagar(id, dto);
+    }
+    devolver(id) {
+        return this.service.marcarComoDevuelto(id);
+    }
+    async update(id, dto) {
+        const estado = dto.estadoPago || dto.estado;
+        if (estado === 'PAGADO') {
+            return this.service.pagar(id, { fechaPago: dto.fechaPago });
+        }
+        if (estado === 'DEVUELTO') {
+            return this.service.marcarComoDevuelto(id);
+        }
+        return this.service.findOne(id);
+    }
+    generarMensual(periodo) {
+        return this.service.generarCuponesMensuales(periodo);
+    }
+};
+exports.CuponesController = CuponesController;
+__decorate([
+    (0, common_1.Get)(),
+    (0, roles_decorator_1.Roles)(role_enum_1.Role.ADMIN, role_enum_1.Role.COBRADOR, role_enum_1.Role.SOCIO),
+    __param(0, (0, common_1.Query)()),
+    __param(1, (0, current_user_decorator_1.CurrentUser)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [query_cupon_dto_1.QueryCuponDto, Object]),
+    __metadata("design:returntype", void 0)
+], CuponesController.prototype, "findAll", null);
+__decorate([
+    (0, common_1.Get)(':id'),
+    (0, roles_decorator_1.Roles)(role_enum_1.Role.ADMIN, role_enum_1.Role.COBRADOR, role_enum_1.Role.SOCIO),
+    __param(0, (0, common_1.Param)('id', common_1.ParseIntPipe)),
+    __param(1, (0, current_user_decorator_1.CurrentUser)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Number, Object]),
+    __metadata("design:returntype", Promise)
+], CuponesController.prototype, "findOne", null);
+__decorate([
+    (0, common_1.Patch)(':id/pagar'),
+    (0, roles_decorator_1.Roles)(role_enum_1.Role.ADMIN, role_enum_1.Role.COBRADOR),
+    __param(0, (0, common_1.Param)('id', common_1.ParseIntPipe)),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Number, pagar_cupon_dto_1.PagarCuponDto]),
+    __metadata("design:returntype", void 0)
+], CuponesController.prototype, "pagar", null);
+__decorate([
+    (0, common_1.Patch)(':id/devolver'),
+    (0, roles_decorator_1.Roles)(role_enum_1.Role.ADMIN, role_enum_1.Role.COBRADOR),
+    __param(0, (0, common_1.Param)('id', common_1.ParseIntPipe)),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Number]),
+    __metadata("design:returntype", void 0)
+], CuponesController.prototype, "devolver", null);
+__decorate([
+    (0, common_1.Patch)(':id'),
+    (0, roles_decorator_1.Roles)(role_enum_1.Role.ADMIN, role_enum_1.Role.COBRADOR),
+    __param(0, (0, common_1.Param)('id', common_1.ParseIntPipe)),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Number, Object]),
+    __metadata("design:returntype", Promise)
+], CuponesController.prototype, "update", null);
+__decorate([
+    (0, common_1.Post)('generar-mensual'),
+    (0, roles_decorator_1.Roles)(role_enum_1.Role.ADMIN),
+    __param(0, (0, common_1.Query)('periodo')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", void 0)
+], CuponesController.prototype, "generarMensual", null);
+exports.CuponesController = CuponesController = __decorate([
+    (0, swagger_1.ApiTags)('Cupones de cobranza'),
+    (0, swagger_1.ApiBearerAuth)(),
+    (0, common_1.UseGuards)(roles_guard_1.RolesGuard),
+    (0, common_1.Controller)('cupones'),
+    __metadata("design:paramtypes", [cupones_service_1.CuponesService])
+], CuponesController);
+//# sourceMappingURL=cupones.controller.js.map
