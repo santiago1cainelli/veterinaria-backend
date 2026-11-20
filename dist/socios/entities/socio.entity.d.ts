@@ -1,0 +1,33 @@
+import { CategoriaSocial } from '../../common/enums/categoria-social.enum';
+import { ZonaCobro } from '../../common/enums/zona-cobro.enum';
+import { EstadoSocio } from '../../common/enums/estado-socio.enum';
+import { RolGrupoFamiliar } from '../../common/enums/rol-grupo-familiar.enum';
+import { GrupoFamiliar } from '../../grupos-familiares/entities/grupo-familiar.entity';
+import { Casillero } from '../../casilleros/entities/casillero.entity';
+import { Inscripcion } from '../../inscripciones/entities/inscripcion.entity';
+import { Cupon } from '../../cupones/entities/cupon.entity';
+import { User } from '../../users/entities/user.entity';
+export declare class Socio {
+    id: number;
+    nombre: string;
+    apellido: string;
+    dni: string;
+    fechaNacimiento: Date;
+    fechaAlta: Date;
+    direccion: string;
+    localidad: string;
+    telefono: string;
+    email: string;
+    categoria: CategoriaSocial;
+    zonaCobro: ZonaCobro;
+    estado: EstadoSocio;
+    mesesImpagosConsecutivos: number;
+    grupoFamiliar: GrupoFamiliar | null;
+    rolGrupoFamiliar: RolGrupoFamiliar | null;
+    casillero: Casillero | null;
+    inscripciones: Inscripcion[];
+    cupones: Cupon[];
+    user: User | null;
+    createdAt: Date;
+    updatedAt: Date;
+}
